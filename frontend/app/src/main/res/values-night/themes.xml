@@ -1,0 +1,15 @@
+<resources>
+    <style name="Base.Theme.Almaeng" parent="Theme.Material3.Light.NoActionBar">
+        <item name="colorPrimary">@color/purple</item>
+        <item name="colorOnPrimary">@color/ink</item>
+        <item name="colorSecondary">@color/purple_deep</item>
+        <item name="android:colorAccent">@color/purple_deep</item>
+        <item name="android:fontFamily">@font/gowun_dodum</item>
+        <item name="android:windowBackground">@color/paper</item>
+        <item name="android:statusBarColor">@color/paper</item>
+        <item name="android:navigationBarColor">@color/paper</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightNavigationBar">true</item>
+        <item name="android:forceDarkAllowed">false</item>
+    </style>
+</resources>

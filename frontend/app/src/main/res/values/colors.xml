@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="paper">#F1EADB</color>
+    <color name="paper_light">#C5FFFDF8</color>
+    <color name="ink">#292821</color>
+    <color name="ink_soft">#6E685E</color>
+    <color name="line">#D5CBB8</color>
+    <color name="purple">#B985CB</color>
+    <color name="purple_deep">#9C64B2</color>
+    <color name="white_warm">#FFFDF8</color>
+    <color name="hint">#AAA294</color>
+    <color name="black">#FF000000</color>
+    <color name="white">#FFFFFFFF</color>
+</resources>

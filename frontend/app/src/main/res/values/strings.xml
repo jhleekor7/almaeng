@@ -1,0 +1,8 @@
+<resources>
+    <string name="app_name">알맹이</string>
+    <string name="menu_open">메뉴 열기</string>
+    <string name="settings_open">설정 열기</string>
+    <string name="topic_hint">알고 싶은 주제를 적어주세요. ex. 광합성의 원리</string>
+    <string name="home_title">아는 것과 모르는 것을\n한눈에 꺼내보세요.</string>
+    <string name="home_empty_title">광합성의 원리</string>
+</resources>
