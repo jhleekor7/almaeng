@@ -1,0 +1,11 @@
+CREATE TABLE knowledge_maps (
+    map_id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    title VARCHAR(100) NOT NULL,
+    input_text TEXT NOT NULL,
+    node_count TINYINT NOT NULL DEFAULT 3,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        ON UPDATE CURRENT_TIMESTAMP,
+
+    CHECK (node_count IN (3, 5, 8))
+);
