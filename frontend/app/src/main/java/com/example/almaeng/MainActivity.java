@@ -5,6 +5,10 @@ import android.os.Bundle;
 import android.text.SpannableString;
 import android.view.View;
 import android.widget.TextView;
+import org.json.JSONObject;
+import org.json.JSONArray;
+import android.widget.EditText;
+import android.app.AlertDialog;
 
 import androidx.activity.EdgeToEdge;
 import androidx.appcompat.app.AppCompatActivity;
@@ -45,6 +49,7 @@ public class MainActivity extends AppCompatActivity {
         applyFonts();
         setHeroTitle();
         setupDepthButtons();
+        setupGenerateButton();
     }
 
     private void applyFonts() {
@@ -105,5 +110,90 @@ public class MainActivity extends AppCompatActivity {
         option.setTextColor(active ? getColor(R.color.ink) : getColor(R.color.ink_soft));
     }
 
-}
 
+    // 지도 그리기 버튼: Backend API 호출
+    private void setupGenerateButton() {
+        EditText topicInput = findViewById(R.id.topicInput);
+        View generateButton = findViewById(R.id.drawMapButton);
+
+        generateButton.setOnClickListener(view -> {
+            String topic = topicInput.getText().toString().trim();
+
+            if (topic.isEmpty()) {
+                topicInput.setError("학습 주제를 입력해주세요.");
+                topicInput.requestFocus();
+                return;
+            }
+
+            generateButton.setEnabled(false);
+
+            MindmapApiClient.createMindmap(
+                    topic,
+                    selectedDepth,
+                    new MindmapApiClient.Callback() {
+                        @Override
+                        public void onSuccess(JSONObject response) {
+                            runOnUiThread(() -> {
+                                generateButton.setEnabled(true);
+                                showMindmapResponse(response);
+                            });
+                        }
+
+                        @Override
+                        public void onFailure(String message) {
+                            runOnUiThread(() -> {
+                                generateButton.setEnabled(true);
+
+                                new AlertDialog.Builder(MainActivity.this)
+                                        .setTitle("마인드맵 생성 실패")
+                                        .setMessage(message)
+                                        .setPositiveButton("확인", null)
+                                        .show();
+                            });
+                        }
+                    }
+            );
+        });
+    }
+
+    // Backend에서 받은 JSON 응답 확인
+    private void showMindmapResponse(JSONObject response) {
+        String status = response.optString("generationStatus");
+        String sourceText = response.optString("sourceText");
+        JSONArray nodes = response.optJSONArray("nodes");
+        JSONArray edges = response.optJSONArray("edges");
+
+        StringBuilder message = new StringBuilder();
+
+        message.append("생성 상태: ").append(status).append("\n");
+        message.append("학습 주제: ").append(sourceText).append("\n\n");
+
+        int nodeCount = nodes == null ? 0 : nodes.length();
+        int edgeCount = edges == null ? 0 : edges.length();
+
+        message.append("개념 노드: ").append(nodeCount).append("개\n");
+        message.append("연결 관계: ").append(edgeCount).append("개\n\n");
+
+        if (nodes != null) {
+            for (int i = 0; i < nodes.length(); i++) {
+                JSONObject node = nodes.optJSONObject(i);
+
+                if (node != null) {
+                    message.append(i + 1)
+                            .append(". ")
+                            .append(node.optString("conceptName"))
+                            .append("\n")
+                            .append(node.optString("description"))
+                            .append("\n\n");
+                }
+            }
+        }
+
+        new AlertDialog.Builder(this)
+                .setTitle("마인드맵 생성 응답")
+                .setMessage(message.toString())
+                .setPositiveButton("확인", null)
+                .show();
+    }
+
+}
