@@ -1,0 +1,13 @@
+spring:
+  application:
+    name: almaeng-api
+
+server:
+  port: 8080
+
+almaeng:
+  ai:
+    enabled: false
+    base-url: ${AI_BASE_URL:https://api.openai.com/v1}
+    api-key: ${AI_API_KEY:}
+    model: ${AI_MODEL:}
