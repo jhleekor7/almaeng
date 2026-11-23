@@ -190,6 +190,8 @@ public class MindMapView extends View {
         paint.setColor(0xFF6E5680);
         paint.setTextAlign(Paint.Align.CENTER);
         canvas.drawText(label, centerX, centerY + dp(3), paint);
+        // 다음 관계선도 정상적으로 그릴 수 있도록 선 스타일로 복구한다.
+        paint.setStyle(Paint.Style.STROKE);
     }
 
     private void drawNode(
