@@ -50,6 +50,7 @@ public class MindmapRepository {
         validateResult(result, requestedNodeCount);
 
         long mapId = insertAndReturnId(
+                "map_id",
                 """
                 INSERT INTO knowledge_maps
                     (source_text, requested_node_count, generation_status)
@@ -69,6 +70,7 @@ public class MindmapRepository {
             int displayOrder = i + 1;
 
             long nodeId = insertAndReturnId(
+                    "node_id",
                     """
                     INSERT INTO map_nodes
                         (map_id, concept_name, description, learning_status, display_order)
@@ -195,13 +197,17 @@ public class MindmapRepository {
         );
     }
 
-    private long insertAndReturnId(String sql, StatementBinder binder) {
+    private long insertAndReturnId(
+            String keyColumn,
+            String sql,
+            StatementBinder binder
+    ) {
         KeyHolder keyHolder = new GeneratedKeyHolder();
 
         PreparedStatementCreator creator = connection -> {
             PreparedStatement statement = connection.prepareStatement(
                     sql,
-                    Statement.RETURN_GENERATED_KEYS
+                    new String[]{keyColumn}
             );
             binder.bind(statement);
             return statement;
@@ -210,8 +216,11 @@ public class MindmapRepository {
         jdbcTemplate.update(creator, keyHolder);
 
         Number generatedKey = keyHolder.getKey();
+
         if (generatedKey == null) {
-            throw new IllegalStateException("DB에서 생성된 ID를 가져오지 못했습니다.");
+            throw new IllegalStateException(
+                    "DB에서 생성된 ID를 가져오지 못했습니다: " + keyColumn
+            );
         }
 
         return generatedKey.longValue();
