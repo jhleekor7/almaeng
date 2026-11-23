@@ -29,9 +29,9 @@ public class AiClient {
 
     public AiClient(
             RestClient.Builder restClientBuilder,
-            @Value("\${almaeng.ai.base-url}") String baseUrl,
-            @Value("\${almaeng.ai.api-key:}") String apiKey,
-            @Value("\${almaeng.ai.model:}") String model,
+            @Value("${almaeng.ai.base-url}") String baseUrl,
+            @Value("${almaeng.ai.api-key:}") String apiKey,
+            @Value("${almaeng.ai.model:}") String model,
             JsonMapper jsonMapper
     ) {
         this.restClient = restClientBuilder
