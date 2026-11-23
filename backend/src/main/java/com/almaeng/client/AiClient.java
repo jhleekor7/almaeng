@@ -141,7 +141,7 @@ public class AiClient {
         }
     }
 
-    private AiMindmapResult parseResult(String content, int expectedNodeCount) {
+    private AiMindmapResult parseResult(String content, int expectedNodeCount) throws JacksonException {
         JsonNode root = jsonMapper.readTree(content);
         JsonNode nodesJson = root.path("nodes");
         JsonNode edgesJson = root.path("edges");
