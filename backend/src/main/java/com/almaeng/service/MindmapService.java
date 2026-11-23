@@ -26,7 +26,7 @@ public class MindmapService {
 
     public MindmapService(
             ObjectProvider<AiClient> aiClientProvider,
-            @Value("\${almaeng.ai.enabled:false}") boolean aiEnabled
+            @Value("${almaeng.ai.enabled:false}") boolean aiEnabled
     ) {
         this.aiClientProvider = aiClientProvider;
         this.aiEnabled = aiEnabled;
