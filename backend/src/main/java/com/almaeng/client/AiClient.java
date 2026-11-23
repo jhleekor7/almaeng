@@ -83,6 +83,8 @@ public class AiClient {
                 }
 
                 nodes는 정확히 요청한 개수로 생성하세요.
+                첫 번째 노드는 입력한 학습 주제와 동일한 conceptName을 가진 최상위 주제여야 합니다.
+                나머지 노드는 최상위 주제의 하위 개념으로 구성하세요.
                 개념 이름은 모두 서로 달라야 합니다.
                 각 edge의 sourceConcept과 targetConcept은 nodes에 실제 존재하는 이름이어야 합니다.
                 자기 자신을 연결하는 edge는 만들지 마세요.
