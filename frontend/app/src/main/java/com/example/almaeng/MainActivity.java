@@ -1,12 +1,15 @@
 package com.example.almaeng;
 
+import android.app.AlertDialog;
 import android.content.Context;
 import android.graphics.Typeface;
 import android.os.Bundle;
 import android.text.SpannableString;
 import android.view.View;
+import android.view.ViewGroup;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.EditText;
+import android.widget.LinearLayout;
 import android.widget.TextView;
 
 import androidx.activity.EdgeToEdge;
@@ -18,11 +21,12 @@ import androidx.core.view.WindowCompat;
 import androidx.core.view.WindowInsetsCompat;
 
 public class MainActivity extends AppCompatActivity {
+
     private Typeface gowun;
     private Typeface gochi;
     private int selectedDepth = 5;
     private boolean showingMap;
-    private String currentTopic;
+    private boolean generating;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -43,34 +47,107 @@ public class MainActivity extends AppCompatActivity {
 
         EditText topicInput = findViewById(R.id.topicInput);
         findViewById(R.id.drawMapButton).setOnClickListener(view -> {
+            if (generating) {
+                return;
+            }
+
             String topic = topicInput.getText().toString().trim();
             if (topic.isEmpty()) {
+                topicInput.setError("학습 주제를 입력해주세요.");
                 topicInput.requestFocus();
                 return;
             }
-            currentTopic = topic;
+
             InputMethodManager keyboard = (InputMethodManager)
                     getSystemService(Context.INPUT_METHOD_SERVICE);
             if (keyboard != null) {
                 keyboard.hideSoftInputFromWindow(topicInput.getWindowToken(), 0);
             }
-            showMapScreen();
+
+            requestMindmap(topic, view);
         });
     }
 
-    private void showMapScreen() {
+    private void requestMindmap(String topic, View generateButton) {
+        generating = true;
+        setGeneratingState(generateButton, true);
+
+        MindmapApiClient.createMindmap(
+                topic,
+                selectedDepth,
+                new MindmapApiClient.Callback() {
+                    @Override
+                    public void onSuccess(MindmapData data) {
+                        runOnUiThread(() -> {
+                            generating = false;
+                            setGeneratingState(generateButton, false);
+
+                            if (isFinishing() || isDestroyed()) {
+                                return;
+                            }
+
+                            showMapScreen(data);
+                        });
+                    }
+
+                    @Override
+                    public void onFailure(String message) {
+                        runOnUiThread(() -> {
+                            generating = false;
+                            setGeneratingState(generateButton, false);
+
+                            if (isFinishing() || isDestroyed()) {
+                                return;
+                            }
+
+                            new AlertDialog.Builder(MainActivity.this)
+                                    .setTitle("개념지도 생성 실패")
+                                    .setMessage(message)
+                                    .setPositiveButton("확인", null)
+                                    .show();
+                        });
+                    }
+                }
+        );
+    }
+
+    private void setGeneratingState(View button, boolean isGenerating) {
+        button.setEnabled(!isGenerating);
+        button.setAlpha(isGenerating ? 0.65f : 1f);
+
+        if (button instanceof ViewGroup && ((ViewGroup) button).getChildCount() > 0) {
+            View firstChild = ((ViewGroup) button).getChildAt(0);
+            if (firstChild instanceof TextView) {
+                ((TextView) firstChild).setText(
+                        isGenerating ? "생성 중..." : "지도 그리기"
+                );
+            }
+        }
+    }
+
+    private void showMapScreen(MindmapData data) {
         showingMap = true;
         setContentView(R.layout.activity_map);
         setupWindow(findViewById(R.id.mapRoot));
 
         TextView topicTitle = findViewById(R.id.mapTopic);
-        topicTitle.setText(currentTopic);
-        if (gowun != null) topicTitle.setTypeface(gowun, Typeface.BOLD);
+        topicTitle.setText(data.getSourceText());
+        if (gowun != null) {
+            topicTitle.setTypeface(gowun, Typeface.BOLD);
+        }
+
+        TextView subtitle = findViewById(R.id.mapSubtitle);
+        if ("MOCK_GENERATED_NOT_SAVED".equals(data.getGenerationStatus())) {
+            subtitle.setText("연동 테스트용 임시 데이터입니다");
+        } else {
+            subtitle.setText("주제를 작은 생각들로 나눈 개념지도예요");
+        }
+
         findViewById(R.id.mapBackButton).setOnClickListener(view -> showHomeScreen());
 
         MindMapView mindMap = findViewById(R.id.mindMapView);
         mindMap.setTypeface(gowun);
-        mindMap.setConcept(currentTopic, selectedDepth);
+        mindMap.setMindmap(data);
     }
 
     private void setupWindow(View root) {
@@ -90,7 +167,7 @@ public class MainActivity extends AppCompatActivity {
 
     private void applyFonts() {
         TextView brandMark = findViewById(R.id.brandMark);
-        TextView wordmark = (TextView) ((android.widget.LinearLayout)
+        TextView wordmark = (TextView) ((LinearLayout)
                 findViewById(R.id.wordmark)).getChildAt(1);
         TextView kicker = findViewById(R.id.homeKicker);
         TextView depthLabel = findViewById(R.id.depthLabel);
@@ -112,14 +189,22 @@ public class MainActivity extends AppCompatActivity {
 
     private void setHeroTitle() {
         TextView title = findViewById(R.id.heroTitle);
-        if (gowun != null) title.setTypeface(gowun);
+        if (gowun != null) {
+            title.setTypeface(gowun);
+        }
+
         String text = getString(R.string.home_title);
         SpannableString styled = new SpannableString(text);
         int highlightStart = text.indexOf('\n') + 1;
         if (highlightStart > 0 && highlightStart < text.length()) {
-            styled.setSpan(new ScribbleHighlightSpan(gowun,
-                            getResources().getDisplayMetrics().density),
-                    highlightStart, text.length(), SpannableString.SPAN_EXCLUSIVE_EXCLUSIVE);
+            styled.setSpan(new ScribbleHighlightSpan(
+                            gowun,
+                            getResources().getDisplayMetrics().density
+                    ),
+                    highlightStart,
+                    text.length(),
+                    SpannableString.SPAN_EXCLUSIVE_EXCLUSIVE
+            );
         }
         title.setText(styled);
     }
@@ -133,6 +218,7 @@ public class MainActivity extends AppCompatActivity {
     private void setDepthOption(int viewId, int depth) {
         TextView option = findViewById(viewId);
         updateDepthAppearance(option, depth == selectedDepth);
+
         option.setOnClickListener(view -> {
             selectedDepth = depth;
             updateDepthAppearance((TextView) findViewById(R.id.depth3), depth == 3);

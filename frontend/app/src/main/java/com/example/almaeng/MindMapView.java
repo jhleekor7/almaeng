@@ -3,27 +3,25 @@ package com.example.almaeng;
 import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.Paint;
-import android.graphics.Path;
 import android.graphics.RectF;
 import android.graphics.Typeface;
 import android.util.AttributeSet;
 import android.view.View;
 
-/** A small, fixed-layout concept map drawn with Android's Java Canvas API. */
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+
+/**
+ * Backend에서 받은 노드와 관계를 Canvas로 그리는 개념지도 View.
+ * 첫 번째 노드는 중심 주제, 나머지 노드는 아래쪽 카드로 배치한다.
+ */
 public class MindMapView extends View {
-    private static final String[] HEADINGS = {
-            "정의", "구성 요소", "진행 과정", "주요 특징",
-            "예시", "활용", "관련 개념", "확인 질문"
-    };
-    private static final String[] DETAILS = {
-            "주제를 한 문장으로", "무엇으로 이루어질까?", "어떤 순서로 될까?", "무엇이 특별할까?",
-            "주변에서 찾아보기", "어디에 쓸 수 있을까?", "함께 알아둘 말", "내 말로 설명해보기"
-    };
 
     private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final RectF box = new RectF();
-    private String topic = "";
-    private int depth = 5;
+
+    private MindmapData mindmap;
     private Typeface typeface;
 
     public MindMapView(Context context) {
@@ -50,9 +48,8 @@ public class MindMapView extends View {
         invalidate();
     }
 
-    public void setConcept(String topic, int depth) {
-        this.topic = topic == null ? "" : topic;
-        this.depth = depth == 3 || depth == 8 ? depth : 5;
+    public void setMindmap(MindmapData mindmap) {
+        this.mindmap = mindmap;
         requestLayout();
         invalidate();
     }
@@ -60,8 +57,15 @@ public class MindMapView extends View {
     @Override
     protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
         int width = MeasureSpec.getSize(widthMeasureSpec);
-        int rows = (depth + 1) / 2;
-        int desiredHeight = dp(166 + rows * 188 + 20);
+        int nodeCount = mindmap == null ? 1 : mindmap.getNodes().size();
+        int childCount = Math.max(0, nodeCount - 1);
+        int rows = (childCount + 1) / 2;
+
+        int desiredHeight = dp(22 + 74 + 20);
+        if (rows > 0) {
+            desiredHeight = dp(22 + 74 + 48 + rows * 150 + (rows - 1) * 24 + 20);
+        }
+
         int height = resolveSize(desiredHeight, heightMeasureSpec);
         setMeasuredDimension(width, height);
     }
@@ -69,98 +73,186 @@ public class MindMapView extends View {
     @Override
     protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
+
+        if (mindmap == null || mindmap.getNodes().isEmpty()) {
+            return;
+        }
+
+        List<MindmapData.Node> nodes = mindmap.getNodes();
         float width = getWidth();
         float centerX = width / 2f;
-        float rootWidth = Math.min(width - dp(44), dp(290));
+
         float rootTop = dp(22);
-        float rootHeight = dp(62);
-        float cardWidth = (width - dp(48)) / 2f;
-        float cardHeight = dp(124);
-        float firstTop = dp(166);
-        float rowGap = dp(188);
-        float leftCenter = dp(16) + cardWidth / 2f;
-        float rightCenter = width - leftCenter;
-        int rows = (depth + 1) / 2;
+        float rootWidth = Math.min(width - dp(44), dp(320));
+        float rootHeight = dp(74);
+        float childTop = rootTop + rootHeight + dp(48);
+        float childWidth = (width - dp(48)) / 2f;
+        float childHeight = dp(150);
+        float rowGap = dp(24);
 
-        drawConnectors(canvas, centerX, rootTop, rootHeight, leftCenter, rightCenter,
-                firstTop, cardHeight, rowGap, rows);
-        drawRoot(canvas, centerX, rootTop, rootWidth, rootHeight);
+        Map<Long, RectF> nodeBounds = new LinkedHashMap<>();
 
-        for (int i = 0; i < depth; i++) {
-            int row = i / 2;
-            int column = i % 2;
-            float left = column == 0 ? dp(16) : width - dp(16) - cardWidth;
-            float top = firstTop + row * rowGap;
-            drawCard(canvas, left, top, cardWidth, cardHeight, HEADINGS[i], DETAILS[i], i);
+        MindmapData.Node root = nodes.get(0);
+        RectF rootBounds = new RectF(
+                centerX - rootWidth / 2f,
+                rootTop,
+                centerX + rootWidth / 2f,
+                rootTop + rootHeight
+        );
+        nodeBounds.put(root.getNodeId(), rootBounds);
+
+        for (int i = 1; i < nodes.size(); i++) {
+            int childIndex = i - 1;
+            int row = childIndex / 2;
+            int column = childIndex % 2;
+
+            float left = column == 0
+                    ? dp(16)
+                    : width - dp(16) - childWidth;
+            float top = childTop + row * (childHeight + rowGap);
+
+            nodeBounds.put(
+                    nodes.get(i).getNodeId(),
+                    new RectF(left, top, left + childWidth, top + childHeight)
+            );
+        }
+
+        drawEdges(canvas, mindmap.getEdges(), nodeBounds);
+
+        drawNode(canvas, rootBounds, root, true);
+        for (int i = 1; i < nodes.size(); i++) {
+            drawNode(canvas, nodeBounds.get(nodes.get(i).getNodeId()), nodes.get(i), false);
         }
     }
 
-    private void drawConnectors(Canvas canvas, float centerX, float rootTop, float rootHeight,
-                                float leftCenter, float rightCenter, float firstTop,
-                                float cardHeight, float rowGap, int rows) {
+    private void drawEdges(
+            Canvas canvas,
+            List<MindmapData.Edge> edges,
+            Map<Long, RectF> nodeBounds
+    ) {
         paint.setColor(0xFFB985CB);
         paint.setStrokeWidth(dp(2));
-        paint.setStyle(Paint.Style.STROKE);
         paint.setStrokeCap(Paint.Cap.ROUND);
-        paint.setStrokeJoin(Paint.Join.ROUND);
+        paint.setStyle(Paint.Style.STROKE);
 
-        float spineBottom = firstTop - dp(20) + (rows - 1) * rowGap;
-        canvas.drawLine(centerX, rootTop + rootHeight, centerX, spineBottom, paint);
-        for (int row = 0; row < rows; row++) {
-            float connectorY = firstTop - dp(20) + row * rowGap;
-            int firstIndex = row * 2;
-            boolean hasLeft = firstIndex < depth;
-            boolean hasRight = firstIndex + 1 < depth;
-            float leftX = leftCenter;
-            float rightX = rightCenter;
-            if (hasLeft && hasRight) {
-                canvas.drawLine(leftX, connectorY, rightX, connectorY, paint);
-            } else if (hasLeft) {
-                canvas.drawLine(centerX, connectorY, leftX, connectorY, paint);
+        for (MindmapData.Edge edge : edges) {
+            RectF source = nodeBounds.get(edge.getSourceNodeId());
+            RectF target = nodeBounds.get(edge.getTargetNodeId());
+
+            if (source == null || target == null) {
+                continue;
             }
-            if (hasLeft) canvas.drawLine(leftX, connectorY, leftX, firstTop + row * rowGap, paint);
-            if (hasRight) canvas.drawLine(rightX, connectorY, rightX, firstTop + row * rowGap, paint);
+
+            float dx = target.centerX() - source.centerX();
+            float dy = target.centerY() - source.centerY();
+
+            if (Math.abs(dx) < 0.1f && Math.abs(dy) < 0.1f) {
+                continue;
+            }
+
+            float sourceScale = 1f / Math.max(
+                    Math.abs(dx) / (source.width() / 2f),
+                    Math.abs(dy) / (source.height() / 2f)
+            );
+            float targetScale = 1f / Math.max(
+                    Math.abs(dx) / (target.width() / 2f),
+                    Math.abs(dy) / (target.height() / 2f)
+            );
+
+            float startX = source.centerX() + dx * sourceScale;
+            float startY = source.centerY() + dy * sourceScale;
+            float endX = target.centerX() - dx * targetScale;
+            float endY = target.centerY() - dy * targetScale;
+
+            canvas.drawLine(startX, startY, endX, endY, paint);
+
+            String label = edge.getRelationshipLabel();
+            if (label != null && !label.isBlank()) {
+                drawEdgeLabel(canvas, label, (startX + endX) / 2f, (startY + endY) / 2f);
+            }
         }
+
         paint.setStyle(Paint.Style.FILL);
     }
 
-    private void drawRoot(Canvas canvas, float centerX, float top, float width, float height) {
-        box.set(centerX - width / 2f, top, centerX + width / 2f, top + height);
+    private void drawEdgeLabel(Canvas canvas, String label, float centerX, float centerY) {
+        setupText(dp(9), Typeface.NORMAL, 0xFF6E5680);
+        float textWidth = Math.min(paint.measureText(label), dp(96));
+        box.set(
+                centerX - textWidth / 2f - dp(5),
+                centerY - dp(10),
+                centerX + textWidth / 2f + dp(5),
+                centerY + dp(10)
+        );
         paint.setColor(0xFFF9F5EC);
-        paint.setStyle(Paint.Style.FILL);
-        paint.setShadowLayer(dp(3), 0, dp(2), 0x33292821);
-        canvas.drawRoundRect(box, dp(20), dp(20), paint);
-        paint.clearShadowLayer();
-        paint.setColor(0xFF292821);
-        paint.setStrokeWidth(dp(1));
-        paint.setStyle(Paint.Style.STROKE);
-        canvas.drawRoundRect(box, dp(20), dp(20), paint);
-        paint.setStyle(Paint.Style.FILL);
+        canvas.drawRoundRect(box, dp(7), dp(7), paint);
 
-        setupText(dp(16), Typeface.BOLD, 0xFF292821);
-        drawWrapped(canvas, topic, centerX, top + dp(26), width - dp(28), 2, dp(19));
+        paint.setColor(0xFF6E5680);
+        paint.setTextAlign(Paint.Align.CENTER);
+        canvas.drawText(label, centerX, centerY + dp(3), paint);
+        // 다음 관계선도 정상적으로 그릴 수 있도록 선 스타일로 복구한다.
+        paint.setStyle(Paint.Style.STROKE);
     }
 
-    private void drawCard(Canvas canvas, float left, float top, float width, float height,
-                          String heading, String detail, int index) {
-        box.set(left, top, left + width, top + height);
-        paint.setColor(index % 2 == 0 ? 0xE6FFFDF8 : 0xDDF9F5EC);
+    private void drawNode(
+            Canvas canvas,
+            RectF bounds,
+            MindmapData.Node node,
+            boolean root
+    ) {
+        if (bounds == null) {
+            return;
+        }
+
         paint.setStyle(Paint.Style.FILL);
+        paint.setColor(root ? 0xFFF9F5EC : 0xE6FFFDF8);
         paint.setShadowLayer(dp(2), 0, dp(2), 0x22292821);
-        canvas.drawRoundRect(box, dp(16), dp(16), paint);
+        canvas.drawRoundRect(bounds, dp(root ? 20 : 16), dp(root ? 20 : 16), paint);
         paint.clearShadowLayer();
-        paint.setColor(0xFFB985CB);
-        paint.setStrokeWidth(dp(1.2f));
-        paint.setStyle(Paint.Style.STROKE);
-        canvas.drawRoundRect(box, dp(16), dp(16), paint);
-        paint.setStyle(Paint.Style.FILL);
 
         paint.setColor(0xFFB985CB);
-        canvas.drawCircle(left + dp(18), top + dp(18), dp(4), paint);
-        setupText(dp(14), Typeface.BOLD, 0xFF292821);
-        drawWrapped(canvas, heading, left + width / 2f, top + dp(48), width - dp(22), 1, dp(18));
+        paint.setStrokeWidth(dp(root ? 1.4f : 1.2f));
+        paint.setStyle(Paint.Style.STROKE);
+        canvas.drawRoundRect(bounds, dp(root ? 20 : 16), dp(root ? 20 : 16), paint);
+        paint.setStyle(Paint.Style.FILL);
+
+        if (!root) {
+            paint.setColor(0xFFB985CB);
+            canvas.drawCircle(bounds.left + dp(18), bounds.top + dp(18), dp(4), paint);
+        }
+
+        float centerX = bounds.centerX();
+        float headingBaseline = bounds.top + dp(root ? 29 : 47);
+        float headingWidth = bounds.width() - dp(24);
+
+        setupText(dp(root ? 16 : 14), Typeface.BOLD, 0xFF292821);
+        drawWrapped(
+                canvas,
+                node.getConceptName(),
+                centerX,
+                headingBaseline,
+                headingWidth,
+                2,
+                dp(root ? 19 : 18)
+        );
+
+        float descriptionBaseline = bounds.top + dp(root ? 52 : 80);
         setupText(dp(11), Typeface.NORMAL, 0xFF6E685E);
-        drawWrapped(canvas, detail, left + width / 2f, top + dp(78), width - dp(20), 2, dp(16));
+        drawWrapped(
+                canvas,
+                node.getDescription(),
+                centerX,
+                descriptionBaseline,
+                bounds.width() - dp(22),
+                root ? 1 : 3,
+                dp(15)
+        );
+
+        String status = node.getLearningStatus();
+        if (status != null && !status.isBlank() && !"UNCHECKED".equals(status)) {
+            setupText(dp(9), Typeface.NORMAL, 0xFF8D6A9E);
+            canvas.drawText(status, centerX, bounds.bottom - dp(10), paint);
+        }
     }
 
     private void setupText(float size, int style, int color) {
@@ -172,23 +264,44 @@ public class MindMapView extends View {
         paint.setTextAlign(Paint.Align.CENTER);
     }
 
-    private void drawWrapped(Canvas canvas, String text, float centerX, float baseline,
-                             float maxWidth, int maxLines, float lineHeight) {
-        if (text == null || text.isEmpty()) return;
+    private void drawWrapped(
+            Canvas canvas,
+            String text,
+            float centerX,
+            float baseline,
+            float maxWidth,
+            int maxLines,
+            float lineHeight
+    ) {
+        if (text == null || text.isEmpty()) {
+            return;
+        }
+
         int start = 0;
         for (int line = 0; line < maxLines && start < text.length(); line++) {
             int count = paint.breakText(text, start, text.length(), true, maxWidth, null);
-            if (count <= 0) break;
+            if (count <= 0) {
+                break;
+            }
+
             int end = start + count;
             if (end < text.length() && line < maxLines - 1) {
                 int space = text.lastIndexOf(' ', end);
-                if (space >= start) end = space;
+                if (space >= start) {
+                    end = space;
+                }
             }
+
             String part = text.substring(start, end).trim();
-            if (end < text.length() && line == maxLines - 1) part += "…";
+            if (end < text.length() && line == maxLines - 1) {
+                part += "…";
+            }
+
             canvas.drawText(part, centerX, baseline + line * lineHeight, paint);
             start = Math.max(end, start + 1);
-            while (start < text.length() && text.charAt(start) == ' ') start++;
+            while (start < text.length() && text.charAt(start) == ' ') {
+                start++;
+            }
         }
     }
 
