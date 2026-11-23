@@ -3,7 +3,6 @@ package com.almaeng.repository;
 import com.almaeng.client.AiMindmapResult;
 import com.almaeng.dto.MindmapResponse;
 
-import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
@@ -17,7 +16,6 @@ import org.springframework.web.server.ResponseStatusException;
 import java.sql.PreparedStatement;
 import java.sql.Statement;
 import java.sql.SQLException;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -68,6 +66,7 @@ public class MindmapRepository {
 
         for (int i = 0; i < generatedNodes.size(); i++) {
             AiMindmapResult.Node node = generatedNodes.get(i);
+            int displayOrder = i + 1;
 
             long nodeId = insertAndReturnId(
                     """
@@ -80,7 +79,7 @@ public class MindmapRepository {
                         statement.setString(2, node.conceptName());
                         statement.setString(3, node.description());
                         statement.setString(4, UNCHECKED);
-                        statement.setInt(5, i + 1);
+                        statement.setInt(5, displayOrder);
                     }
             );
 
@@ -249,7 +248,7 @@ public class MindmapRepository {
             }
         }
 
-        Set<String> edgeKeys = new HashSet<>();
+        Set<EdgeKey> edgeKeys = new HashSet<>();
         for (AiMindmapResult.Edge edge : result.edges()) {
             if (edge == null
                     || edge.sourceConcept() == null
@@ -265,7 +264,7 @@ public class MindmapRepository {
                 );
             }
 
-            String key = edge.sourceConcept() + "\u0000" + edge.targetConcept();
+            EdgeKey key = new EdgeKey(edge.sourceConcept(), edge.targetConcept());
             if (!edgeKeys.add(key)) {
                 throw new ResponseStatusException(
                         HttpStatus.BAD_GATEWAY,
@@ -278,6 +277,9 @@ public class MindmapRepository {
     @FunctionalInterface
     private interface StatementBinder {
         void bind(PreparedStatement statement) throws SQLException;
+    }
+
+    private record EdgeKey(String sourceConcept, String targetConcept) {
     }
 
     private record MapRow(
