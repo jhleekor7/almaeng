@@ -240,6 +240,7 @@ public class MindmapRepository {
             if (node == null
                     || node.conceptName() == null
                     || node.conceptName().isBlank()
+                    || node.conceptName().length() > 200
                     || !conceptNames.add(node.conceptName())) {
                 throw new ResponseStatusException(
                         HttpStatus.BAD_GATEWAY,
@@ -255,6 +256,7 @@ public class MindmapRepository {
                     || edge.targetConcept() == null
                     || edge.relationshipLabel() == null
                     || edge.relationshipLabel().isBlank()
+                    || edge.relationshipLabel().length() > 120
                     || edge.sourceConcept().equals(edge.targetConcept())
                     || !conceptNames.contains(edge.sourceConcept())
                     || !conceptNames.contains(edge.targetConcept())) {
