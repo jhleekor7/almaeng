@@ -55,6 +55,8 @@ public class MindmapService {
             result = createMockResult(sourceText, request.depth());
         }
 
+        validateRootNode(sourceText, result);
+
         // 생성된 개념, 노드 관계를 DB에 저장한 뒤 실제 PK가 포함된 응답을 반환한다.
         return mindmapRepository.save(sourceText, request.depth(), result);
     }
@@ -68,6 +70,18 @@ public class MindmapService {
         }
 
         return mindmapRepository.findById(mapId);
+    }
+
+    private void validateRootNode(String sourceText, AiMindmapResult result) {
+        if (result == null
+                || result.nodes() == null
+                || result.nodes().isEmpty()
+                || !sourceText.equals(result.nodes().get(0).conceptName())) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_GATEWAY,
+                    "첫 번째 개념 노드가 입력한 학습 주제와 일치하지 않습니다."
+            );
+        }
     }
 
     private void validateDepth(Integer depth) {
