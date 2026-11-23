@@ -1,14 +1,24 @@
 spring:
   application:
     name: almaeng-api
+  datasource:
+    url: ${DB_URL:jdbc:mysql://localhost:3306/almaeng?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Seoul}
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      maximum-pool-size: 5
+      minimum-idle: 1
+  sql:
+    init:
+      mode: never
 
 server:
   port: 8080
 
 almaeng:
   ai:
-    # false면 Android 연동용 mock 데이터를 반환한다.
-    # 실제 AI 생성 시 환경 변수로 설정한다.
+    # false면 Android 연동용 mock 데이터를 생성하고, true면 AI API를 호출한다.
     enabled: ${ALMAENG_AI_ENABLED:false}
     base-url: ${ALMAENG_AI_BASE_URL:https://api.openai.com/v1}
     api-key: ${ALMAENG_AI_API_KEY:}

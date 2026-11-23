@@ -3,8 +3,7 @@ package com.almaeng.dto;
 import java.util.List;
 
 /**
- * Android 앱에 반환하는 개념지도 데이터.
- * DB 저장 기능이 연결되기 전까지 mapId는 null이며 nodeId/edgeId는 응답 내 임시 ID다.
+ * DB에 저장된 개념지도와 구성 노드/관계를 반환하는 응답 DTO.
  */
 public record MindmapResponse(
         Long mapId,

@@ -4,6 +4,7 @@ import com.almaeng.client.AiClient;
 import com.almaeng.client.AiMindmapResult;
 import com.almaeng.dto.MindmapRequest;
 import com.almaeng.dto.MindmapResponse;
+import com.almaeng.repository.MindmapRepository;
 
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
@@ -12,9 +13,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 
 @Service
 public class MindmapService {
@@ -23,13 +22,16 @@ public class MindmapService {
 
     private final ObjectProvider<AiClient> aiClientProvider;
     private final boolean aiEnabled;
+    private final MindmapRepository mindmapRepository;
 
     public MindmapService(
             ObjectProvider<AiClient> aiClientProvider,
-            @Value("${almaeng.ai.enabled:false}") boolean aiEnabled
+            @Value("${almaeng.ai.enabled:false}") boolean aiEnabled,
+            MindmapRepository mindmapRepository
     ) {
         this.aiClientProvider = aiClientProvider;
         this.aiEnabled = aiEnabled;
+        this.mindmapRepository = mindmapRepository;
     }
 
     public MindmapResponse createMindmap(MindmapRequest request) {
@@ -38,8 +40,6 @@ public class MindmapService {
         String sourceText = request.sourceText().strip();
 
         AiMindmapResult result;
-        String generationStatus;
-
         if (aiEnabled) {
             AiClient aiClient = aiClientProvider.getIfAvailable();
 
@@ -51,56 +51,23 @@ public class MindmapService {
             }
 
             result = aiClient.generate(sourceText, request.depth());
-            generationStatus = "AI_GENERATED_NOT_SAVED";
         } else {
             result = createMockResult(sourceText, request.depth());
-            generationStatus = "MOCK_GENERATED_NOT_SAVED";
         }
 
-        Map<String, Long> nodeIds = new LinkedHashMap<>();
-        for (int i = 0; i < result.nodes().size(); i++) {
-            nodeIds.put(result.nodes().get(i).conceptName(), (long) i + 1);
+        // 생성된 개념, 노드 관계를 DB에 저장한 뒤 실제 PK가 포함된 응답을 반환한다.
+        return mindmapRepository.save(sourceText, request.depth(), result);
+    }
+
+    public MindmapResponse getMindmap(long mapId) {
+        if (mapId <= 0) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "개념지도 ID는 양수여야 합니다."
+            );
         }
 
-        List<MindmapResponse.Node> nodes = new ArrayList<>();
-        for (AiMindmapResult.Node node : result.nodes()) {
-            nodes.add(new MindmapResponse.Node(
-                    nodeIds.get(node.conceptName()),
-                    node.conceptName(),
-                    node.description(),
-                    "UNCHECKED"
-            ));
-        }
-
-        List<MindmapResponse.Edge> edges = new ArrayList<>();
-        for (int i = 0; i < result.edges().size(); i++) {
-            AiMindmapResult.Edge edge = result.edges().get(i);
-            Long sourceNodeId = nodeIds.get(edge.sourceConcept());
-            Long targetNodeId = nodeIds.get(edge.targetConcept());
-
-            if (sourceNodeId == null || targetNodeId == null) {
-                throw new ResponseStatusException(
-                        HttpStatus.BAD_GATEWAY,
-                        "개념 연결 정보가 올바르지 않습니다."
-                );
-            }
-
-            edges.add(new MindmapResponse.Edge(
-                    (long) i + 1,
-                    sourceNodeId,
-                    targetNodeId,
-                    edge.relationshipLabel()
-            ));
-        }
-
-        return new MindmapResponse(
-                null,
-                sourceText,
-                request.depth(),
-                generationStatus,
-                nodes,
-                edges
-        );
+        return mindmapRepository.findById(mapId);
     }
 
     private void validateDepth(Integer depth) {
@@ -113,8 +80,7 @@ public class MindmapService {
     }
 
     /**
-     * AI 키 없이도 Android와 API의 데이터 연결을 확인할 수 있는 임시 응답.
-     * 실제 개념 생성을 대체하지 않으며 generationStatus로 구분한다.
+     * AI 키 없이 DB 저장 및 API 연동을 확인하기 위한 임시 데이터.
      */
     private AiMindmapResult createMockResult(String sourceText, int nodeCount) {
         List<AiMindmapResult.Node> nodes = new ArrayList<>();
